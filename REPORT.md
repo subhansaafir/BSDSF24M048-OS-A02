@@ -129,3 +129,31 @@ The comparison function returns a negative value when the first filename comes b
 The `const void *` parameters make the function compatible with the generic interface required by `qsort()`, which can sort arrays of different data types. Since this program stores pointers to strings, the generic arguments are converted to the appropriate pointer type before comparison. The `const` qualifier indicates that the comparison function should not modify the elements through these pointers.
 
 ---
+
+## Feature 6: Colorized Output (`v1.5.0`)
+
+### Objective
+
+This feature adds color to filenames according to their file types. ANSI escape sequences are used to apply terminal colors while preserving the alphabetical sorting and existing display modes.
+
+### Color Rules
+
+- Directories: blue
+- Executable files: green
+- `.tar`, `.gz`, and `.zip` archives: red
+- Symbolic links: pink
+- Character devices, block devices, FIFOs, and sockets: reverse video
+- Other files: default terminal color
+
+Color is enabled when output is directed to a terminal. When output is redirected, filenames are printed without color escape sequences.
+
+### Question 1: How do ANSI escape codes produce colored text in a Linux terminal?
+
+**Answer:**
+
+ANSI escape codes are special sequences that compatible terminals interpret as formatting instructions. They can change text color, background color, and other text attributes.
+
+For example, `\033[1;32m` selects bold green text, while `\033[0m` resets the formatting. A C program can print green text using:
+
+```c
+printf("\033[1;32mThis text is green\033[0m\n");
