@@ -68,11 +68,6 @@ static int has_suffix(const char *name, const char *suffix)
     return strcmp(name + name_len - suffix_len, suffix) == 0;
 }
 
-/*
- * Print a filename in the appropriate color.
- * path is used to inspect the actual filesystem entry.
- * name is the filename shown to the user.
- */
 static void print_colored_name(const char *path, const char *name)
 {
     struct stat st;
@@ -89,7 +84,6 @@ static void print_colored_name(const char *path, const char *name)
         return;
     }
 
-    /* Check links and special types before permission-based coloring. */
     if (S_ISLNK(st.st_mode)) {
         color = COLOR_PINK;
     } else if (S_ISDIR(st.st_mode)) {
@@ -110,6 +104,19 @@ static void print_colored_name(const char *path, const char *name)
     printf("%s%s%s", color, name, COLOR_RESET);
 }
 
+static int make_path(char *result, size_t size,
+                     const char *dir, const char *name)
+{
+    int written = snprintf(result, size, "%s/%s", dir, name);
+
+    if (written < 0 || (size_t)written >= size) {
+        fprintf(stderr, "Path is too long: %s/%s\n", dir, name);
+        return 0;
+    }
+
+    return 1;
+}
+
 static void long_listing(const char *dir, const char *name)
 {
     char path[PATH_MAX];
@@ -117,11 +124,8 @@ static void long_listing(const char *dir, const char *name)
     char timebuf[32];
     struct stat st;
 
-    int written = snprintf(path, sizeof(path), "%s/%s", dir, name);
-    if (written < 0 || (size_t)written >= sizeof(path)) {
-        fprintf(stderr, "Path is too long: %s/%s\n", dir, name);
+    if (!make_path(path, sizeof(path), dir, name))
         return;
-    }
 
     if (lstat(path, &st) == -1) {
         perror(path);
@@ -157,14 +161,18 @@ static int terminal_width(void)
 
     if (isatty(STDOUT_FILENO) &&
         ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 &&
-        ws.ws_col > 0) {
+        ws.ws_col > 0)
         return ws.ws_col;
-    }
 
     return 80;
 }
 
-static void list_directory(const char *dir, int long_format, int horizontal)
+/*
+ * List one directory. If recursive is enabled, visit each
+ * subdirectory after displaying the current directory.
+ */
+static void list_directory(const char *dir, int long_format,
+                           int horizontal, int recursive, int *first_header)
 {
     DIR *dp = opendir(dir);
     struct dirent *entry;
@@ -178,11 +186,22 @@ static void list_directory(const char *dir, int long_format, int horizontal)
         return;
     }
 
+    /*
+     * Print a header for recursive output.
+     * The first directory header is printed without a leading blank line.
+     */
+    if (recursive) {
+        if (!*first_header)
+            putchar('\n');
+
+        printf("%s:\n", dir);
+        *first_header = 0;
+    }
+
     while ((entry = readdir(dp)) != NULL) {
         char **tmp;
         size_t len;
 
-        /* Match the usual ls default: hide names beginning with '.'. */
         if (entry->d_name[0] == '.')
             continue;
 
@@ -217,6 +236,7 @@ static void list_directory(const char *dir, int long_format, int horizontal)
     if (count > 1)
         qsort(names, count, sizeof(*names), compare_names);
 
+    /* Display the current directory's entries. */
     if (long_format) {
         for (size_t i = 0; i < count; i++)
             long_listing(dir, names[i]);
@@ -230,25 +250,22 @@ static void list_directory(const char *dir, int long_format, int horizontal)
             cols = count;
 
         if (horizontal) {
-            /* Feature 4: print across each row first. */
             for (size_t i = 0; i < count; i++) {
                 char path[PATH_MAX];
-                int written = snprintf(path, sizeof(path), "%s/%s",
-                                      dir, names[i]);
 
-                if (written < 0 || (size_t)written >= sizeof(path)) {
-                    printf("%-*s", (int)cell_width, names[i]);
-                } else {
+                if (make_path(path, sizeof(path), dir, names[i])) {
                     print_colored_name(path, names[i]);
-                    if (i + 1 < count)
-                        printf("%*s", (int)(cell_width - strlen(names[i])), "");
+                    if ((i + 1) % cols != 0 && i + 1 < count)
+                        printf("%*s",
+                               (int)(cell_width - strlen(names[i])), "");
+                } else {
+                    printf("%s", names[i]);
                 }
 
                 if ((i + 1) % cols == 0 || i + 1 == count)
                     putchar('\n');
             }
         } else {
-            /* Feature 3: fill down columns, then across. */
             size_t rows = (count + cols - 1) / cols;
 
             for (size_t r = 0; r < rows; r++) {
@@ -257,24 +274,44 @@ static void list_directory(const char *dir, int long_format, int horizontal)
 
                     if (i < count) {
                         char path[PATH_MAX];
-                        int written = snprintf(path, sizeof(path), "%s/%s",
-                                              dir, names[i]);
 
-                        if (written < 0 ||
-                            (size_t)written >= sizeof(path)) {
-                            printf("%-*s", (int)cell_width, names[i]);
-                        } else {
+                        if (make_path(path, sizeof(path), dir, names[i])) {
                             print_colored_name(path, names[i]);
 
                             if (c + 1 < cols && i + rows < count)
                                 printf("%*s",
-                                       (int)(cell_width - strlen(names[i])),
-                                       "");
+                                       (int)(cell_width - strlen(names[i])), "");
+                        } else {
+                            printf("%s", names[i]);
                         }
                     }
                 }
 
                 putchar('\n');
+            }
+        }
+    }
+
+    /*
+     * Recurse only after the current directory has been displayed.
+     * lstat() prevents following symbolic links to directories.
+     */
+    if (recursive) {
+        for (size_t i = 0; i < count; i++) {
+            char path[PATH_MAX];
+            struct stat st;
+
+            if (!make_path(path, sizeof(path), dir, names[i]))
+                continue;
+
+            if (lstat(path, &st) == -1) {
+                perror(path);
+                continue;
+            }
+
+            if (S_ISDIR(st.st_mode)) {
+                list_directory(path, long_format, horizontal,
+                               recursive, first_header);
             }
         }
     }
@@ -290,24 +327,31 @@ int main(int argc, char *argv[])
     int opt;
     int long_format = 0;
     int horizontal = 0;
+    int recursive = 0;
+    int first_header = 1;
 
-    while ((opt = getopt(argc, argv, "lx")) != -1) {
+    while ((opt = getopt(argc, argv, "lxR")) != -1) {
         if (opt == 'l') {
             long_format = 1;
         } else if (opt == 'x') {
             horizontal = 1;
+        } else if (opt == 'R') {
+            recursive = 1;
         } else {
-            fprintf(stderr, "Usage: %s [-l] [-x] [directory ...]\n",
+            fprintf(stderr, "Usage: %s [-l] [-x] [-R] [directory ...]\n",
                     argv[0]);
             return EXIT_FAILURE;
         }
     }
 
     if (optind == argc) {
-        list_directory(".", long_format, horizontal);
+        list_directory(".", long_format, horizontal,
+                       recursive, &first_header);
     } else {
-        for (int i = optind; i < argc; i++)
-            list_directory(argv[i], long_format, horizontal);
+        for (int i = optind; i < argc; i++) {
+            list_directory(argv[i], long_format, horizontal,
+                           recursive, &first_header);
+        }
     }
 
     return EXIT_SUCCESS;

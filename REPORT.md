@@ -178,3 +178,15 @@ if (st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
 ```
 
 If at least one execute bit is set, the file is treated as executable for colorization.
+
+---
+
+## Feature 7: Recursive Listing (-R), Version 1.6.0
+
+### 1. What is a base case in recursion, and what stops this recursive listing from continuing forever?
+
+A base case is a condition that stops a recursive function from making further recursive calls. In this implementation, recursion continues only when the program finds a subdirectory in the current directory. If no subdirectories are found, no further recursive calls are made. The program also excludes entries beginning with a dot, including `.` and `..`, so it does not recurse through these special directory entries. Symbolic links are checked with `lstat()`, preventing the program from following symbolic links to directories.
+
+### 2. Why must the program construct a full path before making a recursive call?
+
+The program constructs the full path by combining the current directory and the subdirectory name, such as `parent_dir/subdir`. This ensures that the next recursive call opens the intended subdirectory, regardless of the program's current working directory. If the program called `list_directory("subdir", ...)` instead, the relative path would be resolved from the process's current working directory rather than automatically from `parent_dir`, which could cause it to open the wrong directory or fail.
