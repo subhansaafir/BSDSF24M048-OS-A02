@@ -133,27 +133,48 @@ The `const void *` parameters make the function compatible with the generic inte
 ## Feature 6: Colorized Output (`v1.5.0`)
 
 ### Objective
-
-This feature adds color to filenames according to their file types. ANSI escape sequences are used to apply terminal colors while preserving the alphabetical sorting and existing display modes.
+This feature adds color to filenames according to their file types using ANSI escape sequences. It preserves alphabetical sorting and existing display modes while disabling colors when output is redirected.
 
 ### Color Rules
+- **Directories:** Blue
+- **Executable files:** Green
+- **Archives** (`.tar`, `.gz`, `.zip`): Red
+- **Symbolic links:** Pink
+- **Special files** (character devices, block devices, FIFOs, and sockets): Reverse video
+- **Other files:** Default terminal color
 
-- Directories: blue
-- Executable files: green
-- `.tar`, `.gz`, and `.zip` archives: red
-- Symbolic links: pink
-- Character devices, block devices, FIFOs, and sockets: reverse video
-- Other files: default terminal color
+### Report Questions
 
-Color is enabled when output is directed to a terminal. When output is redirected, filenames are printed without color escape sequences.
-
-### Question 1: How do ANSI escape codes produce colored text in a Linux terminal?
+**Q1. How do ANSI escape codes work to produce color in a standard Linux terminal? Show the specific code sequence for printing text in green.**
 
 **Answer:**
 
-ANSI escape codes are special sequences that compatible terminals interpret as formatting instructions. They can change text color, background color, and other text attributes.
+ANSI escape codes are special character sequences interpreted by compatible terminals as formatting instructions. They can change text color and style. In C, `\033[1;32m` enables bold green text, while `\033[0m` resets formatting to the terminal's default.
 
-For example, `\033[1;32m` selects bold green text, while `\033[0m` resets the formatting. A C program can print green text using:
+Example:
 
 ```c
 printf("\033[1;32mThis text is green\033[0m\n");
+```
+
+Here, `\033` represents the Escape character, `32` selects green, `1` enables bold styling, and `0` resets the formatting.
+
+**Q2. To color an executable file, you need to check its permission bits. Explain which bits in the `st_mode` field you need to check to determine if a file is executable by the owner, group, or others.**
+
+**Answer:**
+
+The `st_mode` field of the `stat` structure contains file type and permission information. To determine whether a file is executable, check these permission bits:
+
+- `S_IXUSR`: Execute permission for the **owner**.
+- `S_IXGRP`: Execute permission for the **group**.
+- `S_IXOTH`: Execute permission for **others**.
+
+In C, the bitwise AND operator (`&`) checks whether any of these bits are set:
+
+```c
+if (st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) {
+    /* Color the filename green */
+}
+```
+
+If at least one execute bit is set, the file is treated as executable for colorization.
