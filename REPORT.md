@@ -27,3 +27,8 @@ The program uses ioctl() with TIOCGWINSZ to detect terminal width. If detection 
 ## Feature 4: Horizontal Display
 
 The -x option displays filenames horizontally across each row instead of filling columns vertically. The program calculates the number of columns using the terminal width and longest filename. Existing default column display and -l long listing support are preserved.
+
+## Feature 5: Alphabetical Sorting
+
+The program sorts filenames alphabetically using qsort() before displaying them. The compare_names() function uses strcmp() to compare two filenames. Sorting is applied to the default column display, horizontal display (-x), and long listing (-l).
+
