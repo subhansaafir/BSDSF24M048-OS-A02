@@ -17,3 +17,4 @@ and S_ISDIR(st_mode) checks whether the file is a directory. Similar macros
 check other file types, while S_IWUSR and S_IXUSR represent owner write and
 execute permissions. Special permission bits include S_ISUID, S_ISGID,
 and S_ISVTX.
+
