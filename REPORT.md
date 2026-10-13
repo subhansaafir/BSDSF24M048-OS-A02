@@ -18,3 +18,8 @@ check other file types, while S_IWUSR and S_IXUSR represent owner write and
 execute permissions. Special permission bits include S_ISUID, S_ISGID,
 and S_ISVTX.
 
+## Feature 3: Column Display
+
+The program stores filenames in a dynamic array and arranges them vertically down each column, then across columns. It calculates the number of columns using the longest filename and terminal width.
+
+The program uses ioctl() with TIOCGWINSZ to detect terminal width. If detection fails, it uses 80 columns as the default.
