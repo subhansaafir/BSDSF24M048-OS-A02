@@ -13,6 +13,14 @@
 #include <getopt.h>
 #include <limits.h>
 
+static int compare_names(const void *a, const void *b)
+{
+    const char *name_a = *(const char **)a;
+    const char *name_b = *(const char **)b;
+
+    return strcmp(name_a, name_b);
+}
+
 static void permissions(mode_t mode, char *p)
 {
     p[0] = S_ISDIR(mode) ? 'd' : S_ISLNK(mode) ? 'l' :
@@ -107,6 +115,7 @@ static void list_directory(const char *dir, int long_format, int horizontal)
         count++;
     }
     closedir(dp);
+    qsort(names, count, sizeof(*names), compare_names);
 
     if (long_format) {
         for (size_t i = 0; i < count; i++)
