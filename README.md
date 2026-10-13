@@ -6,6 +6,7 @@
 > **Environment:** Linux / WSL  
 > **Final version:** `v1.6.0`  
 > **Project goal:** Build a small version of the Linux `ls` command and understand how a program interacts with the operating system.
+> **Purpose:** This readme is created as Notes of this Assignment.
 
 ---
 
