@@ -23,3 +23,7 @@ and S_ISVTX.
 The program stores filenames in a dynamic array and arranges them vertically down each column, then across columns. It calculates the number of columns using the longest filename and terminal width.
 
 The program uses ioctl() with TIOCGWINSZ to detect terminal width. If detection fails, it uses 80 columns as the default.
+
+## Feature 4: Horizontal Display
+
+The -x option displays filenames horizontally across each row instead of filling columns vertically. The program calculates the number of columns using the terminal width and longest filename. Existing default column display and -l long listing support are preserved.

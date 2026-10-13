@@ -10,7 +10,6 @@
 #include <pwd.h>
 #include <grp.h>
 #include <time.h>
-#include <errno.h>
 #include <getopt.h>
 #include <limits.h>
 
@@ -38,8 +37,6 @@ static void long_listing(const char *dir, const char *name)
 {
     char path[PATH_MAX], perm[11], timebuf[32];
     struct stat st;
-    struct passwd *pw;
-    struct group *gr;
 
     snprintf(path, sizeof(path), "%s/%s", dir, name);
     if (lstat(path, &st) == -1) {
@@ -48,35 +45,30 @@ static void long_listing(const char *dir, const char *name)
     }
 
     permissions(st.st_mode, perm);
-    pw = getpwuid(st.st_uid);
-    gr = getgrgid(st.st_gid);
-
+    struct passwd *pw = getpwuid(st.st_uid);
+    struct group *gr = getgrgid(st.st_gid);
     const char *t = ctime(&st.st_mtime);
-    if (t) {
+
+    if (t)
         snprintf(timebuf, sizeof(timebuf), "%.24s", t);
-    } else {
+    else
         strcpy(timebuf, "unknown time");
-    }
 
     printf("%s %3lu %-8s %-8s %8lld %s %s\n",
            perm, (unsigned long)st.st_nlink,
-           pw ? pw->pw_name : "?",
-           gr ? gr->gr_name : "?",
+           pw ? pw->pw_name : "?", gr ? gr->gr_name : "?",
            (long long)st.st_size, timebuf, name);
 }
 
 static int terminal_width(void)
 {
     struct winsize ws;
-
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 &&
-        ws.ws_col > 0)
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
         return ws.ws_col;
-
     return 80;
 }
 
-static void list_directory(const char *dir, int long_format)
+static void list_directory(const char *dir, int long_format, int horizontal)
 {
     DIR *dp = opendir(dir);
     struct dirent *entry;
@@ -114,33 +106,35 @@ static void list_directory(const char *dir, int long_format)
             maxlen = len;
         count++;
     }
-
     closedir(dp);
 
     if (long_format) {
         for (size_t i = 0; i < count; i++)
             long_listing(dir, names[i]);
     } else if (count > 0) {
-        int width = terminal_width();
         size_t cell_width = maxlen + 2;
-        size_t cols = (size_t)width / cell_width;
+        size_t cols = (size_t)terminal_width() / cell_width;
+        if (cols == 0) cols = 1;
+        if (cols > count) cols = count;
 
-        if (cols == 0)
-            cols = 1;
-        if (cols > count)
-            cols = count;
-
-        size_t rows = (count + cols - 1) / cols;
-
-        /* Feature 3: fill vertically down columns, then across. */
-        for (size_t r = 0; r < rows; r++) {
-            for (size_t c = 0; c < cols; c++) {
-                size_t i = c * rows + r;
-                if (i < count) {
-                    printf("%-*s", (int)cell_width, names[i]);
-                }
+        if (horizontal) {
+            /* Feature 4: print across each row first. */
+            for (size_t i = 0; i < count; i++) {
+                printf("%-*s", (int)cell_width, names[i]);
+                if ((i + 1) % cols == 0 || i + 1 == count)
+                    putchar('\n');
             }
-            putchar('\n');
+        } else {
+            /* Feature 3: fill down columns, then across. */
+            size_t rows = (count + cols - 1) / cols;
+            for (size_t r = 0; r < rows; r++) {
+                for (size_t c = 0; c < cols; c++) {
+                    size_t i = c * rows + r;
+                    if (i < count)
+                        printf("%-*s", (int)cell_width, names[i]);
+                }
+                putchar('\n');
+            }
         }
     }
 
@@ -151,23 +145,24 @@ static void list_directory(const char *dir, int long_format)
 
 int main(int argc, char *argv[])
 {
-    int opt, long_format = 0;
+    int opt, long_format = 0, horizontal = 0;
 
-    while ((opt = getopt(argc, argv, "l")) != -1) {
+    while ((opt = getopt(argc, argv, "lx")) != -1) {
         if (opt == 'l')
             long_format = 1;
+        else if (opt == 'x')
+            horizontal = 1;
         else {
-            fprintf(stderr, "Usage: %s [-l] [directory]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-l] [-x] [directory]\n", argv[0]);
             return EXIT_FAILURE;
         }
     }
 
-    if (optind == argc) {
-        list_directory(".", long_format);
-    } else {
+    if (optind == argc)
+        list_directory(".", long_format, horizontal);
+    else
         for (int i = optind; i < argc; i++)
-            list_directory(argv[i], long_format);
-    }
+            list_directory(argv[i], long_format, horizontal);
 
     return EXIT_SUCCESS;
 }
